@@ -1,0 +1,4 @@
+name: softdevice-controller
+append:
+  EXTRA_CONF_FILE: softdevice-controller.conf
+  EXTRA_DTC_OVERLAY_FILE: softdevice-controller.overlay

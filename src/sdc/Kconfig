@@ -1,0 +1,195 @@
+menuconfig ZMK_BT_LL_SOFTDEVICE
+	bool "Use Nordic SoftDevice Controller"
+	depends on SOC_NRF52840
+	depends on BT
+	depends on !BT_LL_SW_SPLIT
+	select HAS_BT_CTLR
+	select BT_CTLR
+	select ZERO_LATENCY_IRQS
+	select BT_HAS_HCI_VS
+	select BT_CTLR_SUBRATING_SUPPORT
+	select BT_CTLR_PHY_UPDATE_SUPPORT
+	select BT_CTLR_DATA_LEN_UPDATE_SUPPORT
+	select BT_CTLR_LE_ENC_SUPPORT
+	select BT_CTLR_EXT_REJ_IND_SUPPORT
+	select BT_CTLR_PRIVACY_SUPPORT
+	select BT_CTLR_CONN_RSSI_SUPPORT
+	select BT_CTLR_CHAN_SEL_2_SUPPORT
+	select BT_CTLR_ADV_EXT_SUPPORT
+	select BT_CTLR_CRYPTO_SUPPORT
+	select BT_CTLR_ENTROPY_SUPPORT
+	select CLOCK_CONTROL_NRF_FORCE_ALT
+	help
+	  Use Nordic's SoftDevice Controller instead of Zephyr's built-in
+	  software link layer (BT_LL_SW_SPLIT).
+
+	  This provides better power efficiency and support for advanced
+	  Bluetooth 5.3+ features like Connection Subrating.
+
+if ZMK_BT_LL_SOFTDEVICE
+
+# ============================================================================
+# SDC Variant Selection
+# ============================================================================
+
+choice ZMK_SDC_VARIANT
+	prompt "SoftDevice Controller variant"
+	default ZMK_SDC_MULTIROLE
+
+config ZMK_SDC_MULTIROLE
+	bool "Multirole (Central + Peripheral)"
+	help
+	  Full-featured variant supporting both central and peripheral roles.
+	  Required for ZMK split keyboards.
+
+config ZMK_SDC_PERIPHERAL
+	bool "Peripheral only"
+	help
+	  Smaller code size variant for peripheral-only devices.
+
+config ZMK_SDC_CENTRAL
+	bool "Central only"
+	help
+	  Smaller code size variant for central-only devices.
+
+endchoice
+
+# ============================================================================
+# SDC Features
+# ============================================================================
+
+config ZMK_SDC_LLPM
+	bool "Low Latency Packet Mode (LLPM)"
+	help
+	  Nordic proprietary feature allowing connection intervals down to 1ms.
+
+# ============================================================================
+# MPSL Configuration
+# ============================================================================
+
+config MPSL_THREAD_COOP_PRIO
+	int "MPSL thread cooperative priority"
+	default 8
+	help
+	  Cooperative priority of the MPSL work handler thread.
+
+config MPSL_WORK_STACK_SIZE
+	int "MPSL work handler thread stack size"
+	default 1024
+	help
+	  Stack size for the MPSL work handler thread.
+
+config MPSL_TIMESLOT_SESSION_COUNT
+	int "Number of MPSL timeslot sessions"
+	default 0
+	help
+	  Maximum number of timeslot sessions.
+
+config MPSL_LOW_PRIO_IRQN
+	int "MPSL low priority IRQ number"
+	default 25 if SOC_SERIES_NRF52X
+	help
+	  IRQ number for MPSL low-priority processing (SWI5 on nRF52).
+
+config MPSL_HFCLK_LATENCY
+	int "HFCLK startup latency (microseconds)"
+	default 1400
+	help
+	  Time MPSL assumes for HFCLK to become available after request.
+
+config MPSL_ASSERT_HANDLER
+	bool "Application-defined MPSL assertion handler"
+	help
+	  Enable application-defined handler for MPSL assertions.
+
+config MPSL_DYNAMIC_INTERRUPTS
+	bool "Use dynamic interrupts for MPSL"
+	depends on DYNAMIC_DIRECT_INTERRUPTS
+	help
+	  Configure MPSL IRQ handlers using direct dynamic interrupts.
+
+config MPSL_INIT_PRIORITY
+	int "MPSL initialization priority"
+	default 50
+	help
+	  System initialization priority for MPSL.
+
+config BT_LL_SOFTDEVICE_INIT_PRIORITY
+	int "SoftDevice Controller initialization priority"
+	default 51
+	help
+	  System initialization priority for the SoftDevice Controller.
+	  Must be higher than MPSL_INIT_PRIORITY.
+
+# ============================================================================
+# SDC Connection Configuration
+# ============================================================================
+
+config BT_CTLR_SDC_PERIPHERAL_COUNT
+	int "Number of peripheral connections"
+	default 1
+	range 0 20
+	help
+	  Maximum number of connections in peripheral role.
+
+config BT_CTLR_SDC_TX_PACKET_COUNT
+	int "TX packet buffers per connection"
+	default 3
+	range 1 20
+	help
+	  Number of TX packet buffers per connection.
+
+config BT_CTLR_SDC_RX_PACKET_COUNT
+	int "RX packet buffers per connection"
+	default 2
+	range 1 20
+	help
+	  Number of RX packet buffers per connection.
+
+config BT_CTLR_SDC_MAX_CONN_EVENT_LEN_DEFAULT
+	int "Default max connection event length (us)"
+	default 7500
+	help
+	  Maximum time in microseconds for a connection event.
+
+config BT_CTLR_SDC_CENTRAL_ACL_EVENT_SPACING_DEFAULT
+	int "Default central ACL event spacing (us)"
+	depends on BT_CENTRAL
+	default BT_CTLR_SDC_MAX_CONN_EVENT_LEN_DEFAULT
+	help
+	  On the central, sets the time ACL connections are spaced apart
+	  assuming they are using the same connection interval.
+
+config BT_CTLR_SDC_RX_PRIO
+	int "SDC RX thread priority"
+	default 6
+	help
+	  Priority of the SDC receive thread.
+
+config BT_CTLR_SDC_SCAN_BUFFER_COUNT
+	int "Scanner buffer count"
+	default 3
+	range 2 20
+	help
+	  Number of buffers for scanner operation.
+
+config BT_CTLR_FAL_SIZE
+	int "Filter Accept List size"
+	default 8
+	range 0 255
+	help
+	  Maximum addresses in the Filter Accept List.
+
+# ============================================================================
+# Logging
+# ============================================================================
+
+module = SDC
+module-str = SDC
+source "subsys/logging/Kconfig.template.log_config"
+
+module = MPSL
+module-str = MPSL
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # ZMK_BT_LL_SOFTDEVICE

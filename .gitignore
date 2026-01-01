@@ -1,0 +1,20 @@
+# Build artifacts
+build/
+*.o
+*.a
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# West workspace (pulled dependencies)
+.west/
+nrf/
+nrfxlib/
+.venv/

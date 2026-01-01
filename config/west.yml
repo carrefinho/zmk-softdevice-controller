@@ -1,0 +1,16 @@
+manifest:
+  remotes:
+    - name: nrfconnect
+      url-base: https://github.com/nrfconnect
+
+  projects:
+    # Nordic binary libraries (SDC, MPSL) and headers
+    # No board_root in its module.yml - safe to include
+    - name: nrfxlib
+      remote: nrfconnect
+      revision: v3.1.1
+      repo-path: sdk-nrfxlib
+      path: nrfxlib
+
+  self:
+    path: zmk-softdevice-controller
