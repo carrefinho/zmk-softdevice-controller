@@ -172,8 +172,35 @@ static void subrate_changed_cb(struct bt_conn *conn,
     }
 }
 
+#if IS_ENABLED(CONFIG_BT_USER_PHY_UPDATE)
+static const char *phy_to_str(uint8_t phy) {
+    switch (phy) {
+    case BT_GAP_LE_PHY_1M:
+        return "1M";
+    case BT_GAP_LE_PHY_2M:
+        return "2M";
+    case BT_GAP_LE_PHY_CODED:
+        return "Coded";
+    default:
+        return "Unknown";
+    }
+}
+
+static void phy_updated_cb(struct bt_conn *conn, struct bt_conn_le_phy_info *info)
+{
+    char addr_str[BT_ADDR_LE_STR_LEN];
+    bt_addr_le_to_str(bt_conn_get_dst(conn), addr_str, sizeof(addr_str));
+
+    LOG_INF("PHY updated [%s]: tx=%s, rx=%s",
+            addr_str, phy_to_str(info->tx_phy), phy_to_str(info->rx_phy));
+}
+#endif /* CONFIG_BT_USER_PHY_UPDATE */
+
 BT_CONN_CB_DEFINE(subrating_conn_cb) = {
     .subrate_changed = subrate_changed_cb,
+#if IS_ENABLED(CONFIG_BT_USER_PHY_UPDATE)
+    .le_phy_updated = phy_updated_cb,
+#endif
 };
 
 static int zmk_sdc_subrating_init(void) {
