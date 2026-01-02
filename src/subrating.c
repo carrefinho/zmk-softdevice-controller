@@ -196,35 +196,7 @@ static void phy_updated_cb(struct bt_conn *conn, struct bt_conn_le_phy_info *inf
 }
 #endif /* CONFIG_BT_USER_PHY_UPDATE */
 
-/* Conservative params for host connections - minimal subrating to test support */
-static const struct bt_conn_le_subrate_param host_params = {
-    .subrate_min = 1,
-    .subrate_max = 2,
-    .max_latency = 0,
-    .continuation_number = 1,
-    .supervision_timeout = SUBRATE_TIMEOUT,
-};
-
-static void connected_cb(struct bt_conn *conn, uint8_t err)
-{
-    if (err) {
-        return;
-    }
-
-    struct bt_conn_info info;
-    bt_conn_get_info(conn, &info);
-
-    /* For peripheral connections (to hosts), request subrating to test support */
-    if (info.role == BT_CONN_ROLE_PERIPHERAL) {
-        int ret = bt_conn_le_subrate_request(conn, &host_params);
-        if (ret && ret != -EALREADY) {
-            LOG_WRN("Failed to request subrating from host: %d", ret);
-        }
-    }
-}
-
 BT_CONN_CB_DEFINE(subrating_conn_cb) = {
-    .connected = connected_cb,
     .subrate_changed = subrate_changed_cb,
 #if IS_ENABLED(CONFIG_BT_USER_PHY_UPDATE)
     .le_phy_updated = phy_updated_cb,
