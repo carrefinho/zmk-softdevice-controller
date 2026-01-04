@@ -199,6 +199,63 @@ SYS_INIT(zmk_sdc_subrating_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
 
 #endif /* CONFIG_ZMK_SPLIT_ROLE_CENTRAL */
 
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+
+/*
+ * Peripheral half: request ACTIVE subrate when local activity is detected.
+ * This ensures the peripheral can send keystrokes quickly without waiting
+ * for the central to initiate a tier change.
+ */
+
+static const struct bt_conn_le_subrate_param peripheral_active_params = {
+    .subrate_min = 1,
+    .subrate_max = 2,
+    .max_latency = 0,
+    .continuation_number = 1,
+    .supervision_timeout = 400, /* 4 seconds */
+};
+
+static bool peripheral_is_active = false;
+
+static void apply_subrate_to_peripheral_conn(struct bt_conn *conn, void *data) {
+    const struct bt_conn_le_subrate_param *params = data;
+    struct bt_conn_info info;
+
+    bt_conn_get_info(conn, &info);
+
+    if (info.role == BT_CONN_ROLE_PERIPHERAL && info.state == BT_CONN_STATE_CONNECTED) {
+        int err = bt_conn_le_subrate_request(conn, params);
+        if (err && err != -EALREADY) {
+            LOG_WRN("Peripheral failed to request subrate: %d", err);
+        }
+    }
+}
+
+static int peripheral_subrating_activity_listener(const zmk_event_t *eh) {
+    struct zmk_activity_state_changed *ev = as_zmk_activity_state_changed(eh);
+    if (ev == NULL) {
+        return -ENOTSUP;
+    }
+
+    if (ev->state == ZMK_ACTIVITY_ACTIVE) {
+        if (!peripheral_is_active) {
+            LOG_INF("Peripheral requesting ACTIVE subrate");
+            bt_conn_foreach(BT_CONN_TYPE_LE, apply_subrate_to_peripheral_conn,
+                            (void *)&peripheral_active_params);
+            peripheral_is_active = true;
+        }
+    } else {
+        peripheral_is_active = false;
+    }
+
+    return 0;
+}
+
+ZMK_LISTENER(sdc_subrating_peripheral, peripheral_subrating_activity_listener);
+ZMK_SUBSCRIPTION(sdc_subrating_peripheral, zmk_activity_state_changed);
+
+#endif /* CONFIG_ZMK_SPLIT && !CONFIG_ZMK_SPLIT_ROLE_CENTRAL */
+
 /* Callbacks for logging (all builds) */
 
 static void subrate_changed_cb(struct bt_conn *conn,
