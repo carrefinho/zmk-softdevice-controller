@@ -85,6 +85,64 @@ static const struct bt_conn_le_subrate_param dormant_params = {
     .supervision_timeout = SUBRATE_TIMEOUT,
 };
 
+#if IS_ENABLED(CONFIG_ZMK_BLE_HOST_CONN_PARAM_DORMANT)
+
+/* Host connection parameters for dormant tier */
+#define HOST_DORMANT_INT_MIN    CONFIG_ZMK_BLE_HOST_CONN_DORMANT_INT_MIN
+#define HOST_DORMANT_INT_MAX    CONFIG_ZMK_BLE_HOST_CONN_DORMANT_INT_MAX
+#define HOST_DORMANT_LATENCY    CONFIG_ZMK_BLE_HOST_CONN_DORMANT_LATENCY
+#define HOST_DORMANT_TIMEOUT    CONFIG_ZMK_BLE_HOST_CONN_DORMANT_TIMEOUT
+
+/* Apple guidelines validation */
+BUILD_ASSERT(HOST_DORMANT_INT_MIN >= 12,
+    "Interval min must be >= 15ms (12 units)");
+BUILD_ASSERT(HOST_DORMANT_INT_MIN % 12 == 0,
+    "Interval min must be a multiple of 15ms (12 units)");
+BUILD_ASSERT(HOST_DORMANT_INT_MAX >= HOST_DORMANT_INT_MIN,
+    "Interval max must be >= interval min");
+BUILD_ASSERT(HOST_DORMANT_INT_MAX == HOST_DORMANT_INT_MIN ||
+             HOST_DORMANT_INT_MAX >= HOST_DORMANT_INT_MIN + 12,
+    "Interval max must equal min or be at least 15ms greater");
+BUILD_ASSERT(HOST_DORMANT_LATENCY <= 30,
+    "Latency must be <= 30");
+BUILD_ASSERT((HOST_DORMANT_INT_MAX * 125 / 100) * (HOST_DORMANT_LATENCY + 1) <= 6000,
+    "Interval max * (latency + 1) must be <= 6 seconds");
+BUILD_ASSERT(HOST_DORMANT_TIMEOUT * 10 >
+             (HOST_DORMANT_INT_MAX * 125 / 100) * (HOST_DORMANT_LATENCY + 1) * 3,
+    "Timeout must be > interval_max * (latency + 1) * 3");
+
+static const struct bt_le_conn_param host_dormant_params = {
+    .interval_min = HOST_DORMANT_INT_MIN,
+    .interval_max = HOST_DORMANT_INT_MAX,
+    .latency = HOST_DORMANT_LATENCY,
+    .timeout = HOST_DORMANT_TIMEOUT,
+};
+
+/* Normal host parameters (from ZMK defaults) */
+static const struct bt_le_conn_param host_active_params = {
+    .interval_min = CONFIG_BT_PERIPHERAL_PREF_MIN_INT,
+    .interval_max = CONFIG_BT_PERIPHERAL_PREF_MAX_INT,
+    .latency = CONFIG_BT_PERIPHERAL_PREF_LATENCY,
+    .timeout = CONFIG_BT_PERIPHERAL_PREF_TIMEOUT,
+};
+
+static void apply_conn_param_to_host(struct bt_conn *conn, void *data) {
+    const struct bt_le_conn_param *params = data;
+    struct bt_conn_info info;
+
+    bt_conn_get_info(conn, &info);
+
+    /* Host connections are where we act as peripheral */
+    if (info.role == BT_CONN_ROLE_PERIPHERAL && info.state == BT_CONN_STATE_CONNECTED) {
+        int err = bt_conn_le_param_update(conn, params);
+        if (err && err != -EALREADY) {
+            LOG_WRN("Failed to request host conn param update: %d", err);
+        }
+    }
+}
+
+#endif /* CONFIG_ZMK_BLE_HOST_CONN_PARAM_DORMANT */
+
 static void dormant_timer_handler(struct k_work *work);
 static K_WORK_DELAYABLE_DEFINE(dormant_work, dormant_timer_handler);
 
@@ -110,6 +168,7 @@ static void set_tier(enum subrate_tier tier) {
         return;
     }
 
+    enum subrate_tier prev_tier = current_tier;
     current_tier = tier;
 
     const struct bt_conn_le_subrate_param *params;
@@ -138,6 +197,22 @@ static void set_tier(enum subrate_tier tier) {
 
     bt_conn_le_subrate_set_defaults(params);
     bt_conn_foreach(BT_CONN_TYPE_LE, apply_subrate_to_conn, (void *)params);
+
+#if IS_ENABLED(CONFIG_ZMK_BLE_HOST_CONN_PARAM_DORMANT)
+    /* Update host connection parameters when entering/exiting dormant */
+    if (tier == TIER_DORMANT) {
+        LOG_INF("Host conn params: dormant (interval=%d-%d, latency=%d)",
+                HOST_DORMANT_INT_MIN, HOST_DORMANT_INT_MAX, HOST_DORMANT_LATENCY);
+        bt_conn_foreach(BT_CONN_TYPE_LE, apply_conn_param_to_host,
+                        (void *)&host_dormant_params);
+    } else if (prev_tier == TIER_DORMANT) {
+        LOG_INF("Host conn params: active (interval=%d-%d, latency=%d)",
+                CONFIG_BT_PERIPHERAL_PREF_MIN_INT, CONFIG_BT_PERIPHERAL_PREF_MAX_INT,
+                CONFIG_BT_PERIPHERAL_PREF_LATENCY);
+        bt_conn_foreach(BT_CONN_TYPE_LE, apply_conn_param_to_host,
+                        (void *)&host_active_params);
+    }
+#endif
 }
 
 static void dormant_timer_handler(struct k_work *work) {
@@ -301,11 +376,25 @@ static void phy_updated_cb(struct bt_conn *conn, struct bt_conn_le_phy_info *inf
 }
 #endif
 
+static void le_param_updated_cb(struct bt_conn *conn, uint16_t interval,
+                                uint16_t latency, uint16_t timeout)
+{
+    char addr_str[BT_ADDR_LE_STR_LEN];
+    bt_addr_le_to_str(bt_conn_get_dst(conn), addr_str, sizeof(addr_str));
+
+    /* interval is in 1.25ms units, timeout is in 10ms units */
+    uint32_t interval_us = interval * 1250;  /* Convert to microseconds */
+    LOG_INF("Conn params [%s]: interval=%d.%02dms, latency=%d, timeout=%dms",
+            addr_str, interval_us / 1000, (interval_us % 1000) / 10,
+            latency, timeout * 10);
+}
+
 BT_CONN_CB_DEFINE(subrating_conn_cb) = {
     .subrate_changed = subrate_changed_cb,
 #if IS_ENABLED(CONFIG_BT_USER_PHY_UPDATE)
     .le_phy_updated = phy_updated_cb,
 #endif
+    .le_param_updated = le_param_updated_cb,
 };
 
 #endif /* CONFIG_BT_SUBRATING */

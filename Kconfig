@@ -78,4 +78,52 @@ config ZMK_BLE_SUBRATE_DORMANT_MAX_LATENCY
 	default 0
 	range 0 499
 
+# Host connection parameters for dormant tier
+# When entering dormant, request slower connection interval from hosts to save power
+
+config ZMK_BLE_HOST_CONN_PARAM_DORMANT
+	bool "Update host connection parameters when dormant"
+	default y
+	help
+	  When entering dormant tier, request slower connection parameters from
+	  host devices to reduce power consumption. Parameters are restored when
+	  returning to active state.
+
+if ZMK_BLE_HOST_CONN_PARAM_DORMANT
+
+config ZMK_BLE_HOST_CONN_DORMANT_INT_MIN
+	int "Host dormant connection interval minimum (1.25ms units)"
+	default 36
+	range 6 3200
+	help
+	  Minimum connection interval when dormant. 36 = 45ms.
+	  Must be a multiple of 12 (15ms) per Apple guidelines.
+
+config ZMK_BLE_HOST_CONN_DORMANT_INT_MAX
+	int "Host dormant connection interval maximum (1.25ms units)"
+	default 36
+	range 6 3200
+	help
+	  Maximum connection interval when dormant. 36 = 45ms.
+	  Must be at least 12 (15ms) greater than min, or equal to min.
+
+config ZMK_BLE_HOST_CONN_DORMANT_LATENCY
+	int "Host dormant peripheral latency"
+	default 30
+	range 0 30
+	help
+	  Number of connection events the peripheral can skip when dormant.
+	  Higher values save more power but increase response latency.
+	  Apple guidelines: max 30, and interval_max * (latency + 1) <= 6000ms.
+
+config ZMK_BLE_HOST_CONN_DORMANT_TIMEOUT
+	int "Host dormant supervision timeout (10ms units)"
+	default 600
+	range 10 3200
+	help
+	  Supervision timeout when dormant. 600 = 6000ms.
+	  Must be > interval_max * (latency + 1) * 3.
+
+endif # ZMK_BLE_HOST_CONN_PARAM_DORMANT
+
 endif # BT_SUBRATING && ZMK_SPLIT_ROLE_CENTRAL
