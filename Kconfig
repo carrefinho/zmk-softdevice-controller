@@ -83,7 +83,7 @@ config ZMK_BLE_SUBRATE_DORMANT_MAX_LATENCY
 
 config ZMK_BLE_HOST_CONN_PARAM_DORMANT
 	bool "Update host connection parameters when dormant"
-	default y
+	default n
 	help
 	  When entering dormant tier, request slower connection parameters from
 	  host devices to reduce power consumption. Parameters are restored when
