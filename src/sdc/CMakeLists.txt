@@ -2,11 +2,16 @@ if(CONFIG_ZMK_BT_LL_SOFTDEVICE)
 
 zephyr_library()
 
+# Find nrfxlib - check module directory first, then workspace root
 get_filename_component(MODULE_ROOT ${CMAKE_CURRENT_LIST_DIR}/../.. ABSOLUTE)
 set(NRFXLIB_DIR ${MODULE_ROOT}/nrfxlib)
 
+if(NOT EXISTS ${NRFXLIB_DIR} AND DEFINED ENV{WEST_TOPDIR})
+  set(NRFXLIB_DIR $ENV{WEST_TOPDIR}/nrfxlib)
+endif()
+
 if(NOT EXISTS ${NRFXLIB_DIR})
-  message(FATAL_ERROR "nrfxlib not found at ${NRFXLIB_DIR}. Run 'west update'.")
+  message(FATAL_ERROR "nrfxlib not found. Run 'west update' to fetch it.")
 endif()
 
 if(CONFIG_SOC_NRF52840)
