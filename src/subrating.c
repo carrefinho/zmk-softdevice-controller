@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2025-2026 carrefinho
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 #include <errno.h>
 
 #include <zephyr/logging/log.h>
